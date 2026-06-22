@@ -30,16 +30,7 @@ pub fn do_login(gateway: &str, student_id: &str, password: &str, ac_ip: &str) ->
         ("jsVersion", "3.3.3"),
     ];
 
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build();
-
-    let client = match client {
-        Ok(c) => c,
-        Err(e) => return (false, format!("HTTP客户端创建失败: {}", e)),
-    };
-
-    let resp = client
+    let resp = crate::network::get_http_client()
         .get(&login_url)
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
         .query(&params)
@@ -48,7 +39,7 @@ pub fn do_login(gateway: &str, student_id: &str, password: &str, ac_ip: &str) ->
     match resp {
         Ok(r) => {
             let text = r.text().unwrap_or_default();
-            if text.contains("\"result\":\"1\"") || text.contains("\"result\":\"0\"") {
+            if text.contains("\"result\":\"1\"") {
                 (true, "认证通过。".into())
             } else {
                 (false, format!("认证失败: {}", &text.chars().take(80).collect::<String>()))

@@ -39,7 +39,7 @@ impl GuardianThread {
         self.send_state(GuardianState::Initializing);
 
         let mut current_interval = {
-            let cfg = self.config.lock().unwrap();
+            let cfg = self.config.lock().unwrap_or_else(|e| e.into_inner());
             cfg.base_retry_interval
         };
 
@@ -48,21 +48,21 @@ impl GuardianThread {
                 break;
             }
 
-            *self.last_heartbeat.lock().unwrap() = Instant::now();
+            *self.last_heartbeat.lock().unwrap_or_else(|e| e.into_inner()) = Instant::now();
 
             if self.pause.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_secs(1));
                 continue;
             }
 
-            let cfg = self.config.lock().unwrap().clone();
+            let cfg = self.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
             let campus_names = [&*cfg.ethernet_name, &*cfg.wifi_name];
 
             let adapters = network::get_adapters();
             let phone_active = network::is_phone_active(&adapters, &campus_names);
 
             if phone_active {
-                let mut disabled = self.disabled_adapter.lock().unwrap();
+                let mut disabled = self.disabled_adapter.lock().unwrap_or_else(|e| e.into_inner());
                 if disabled.is_none() {
                     if let Some((_, name)) = network::get_active_adapter(&adapters, &cfg.ethernet_name, &cfg.wifi_name) {
                         if self.dry_run {
@@ -85,7 +85,7 @@ impl GuardianThread {
             }
 
             {
-                let mut disabled = self.disabled_adapter.lock().unwrap();
+                let mut disabled = self.disabled_adapter.lock().unwrap_or_else(|e| e.into_inner());
                 if let Some(ref name) = disabled.clone() {
                     if name != "__none__" {
                         if self.dry_run {
@@ -188,7 +188,7 @@ impl GuardianThread {
     }
 
     fn should_check_phone(&self) -> bool {
-        self.disabled_adapter.lock().unwrap().is_none()
+        self.disabled_adapter.lock().unwrap_or_else(|e| e.into_inner()).is_none()
     }
 
     fn wait_for_network_ready(&self, _cfg: &Config) {

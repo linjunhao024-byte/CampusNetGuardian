@@ -177,7 +177,7 @@ use std::sync::OnceLock;
 
 static HTTP_CLIENT: OnceLock<reqwest::blocking::Client> = OnceLock::new();
 
-fn get_http_client() -> &'static reqwest::blocking::Client {
+pub fn get_http_client() -> &'static reqwest::blocking::Client {
     HTTP_CLIENT.get_or_init(|| {
         reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(3))

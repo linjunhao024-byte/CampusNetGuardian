@@ -16,6 +16,16 @@ fn acquire_single_instance() -> Option<std::net::TcpListener> {
     std::net::TcpListener::bind(("127.0.0.1", INSTANCE_PORT)).ok()
 }
 
+fn show_msgbox(title: &str, msg: &str) {
+    unsafe {
+        let t: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+        let m: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
+        windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
+            std::ptr::null_mut(), m.as_ptr(), t.as_ptr(), 0x00000010,
+        );
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let is_test = args.iter().any(|a| a == "--test" || a == "--test-gui");
@@ -24,11 +34,7 @@ fn main() {
         match acquire_single_instance() {
             Some(l) => Some(l),
             None => {
-                unsafe {
-                    windows_sys::Win32::System::Console::AllocConsole();
-                    eprintln!("CampusNet Guardian 已在运行中，请勿重复启动。");
-                }
-                std::thread::sleep(std::time::Duration::from_secs(3));
+                show_msgbox("CampusNet Guardian", "程序已在运行中，请勿重复启动。");
                 std::process::exit(0);
             }
         }
@@ -40,14 +46,14 @@ fn main() {
         run_test();
     } else if args.iter().any(|a| a == "--test-gui") {
         if let Err(e) = gui::run_gui(true) {
-            eprintln!("GUI 启动失败: {}", e);
+            show_msgbox("CampusNet Guardian", &format!("GUI 启动失败: {}", e));
             std::process::exit(1);
         }
     } else if args.iter().any(|a| a == "--cli" || a == "-c") {
         cli::run_cli();
     } else {
         if let Err(e) = gui::run_gui(false) {
-            eprintln!("GUI 启动失败: {}", e);
+            show_msgbox("CampusNet Guardian", &format!("GUI 启动失败: {}", e));
             std::process::exit(1);
         }
     }

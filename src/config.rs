@@ -15,7 +15,6 @@ pub struct Config {
     pub base_retry_interval: u64,
     pub max_retry_interval: u64,
     pub normal_check_interval: u64,
-    pub mutex_port: u16,
 }
 
 impl Default for Config {
@@ -33,7 +32,6 @@ impl Default for Config {
             base_retry_interval: 2,
             max_retry_interval: 300,
             normal_check_interval: 5,
-            mutex_port: 65432,
         }
     }
 }

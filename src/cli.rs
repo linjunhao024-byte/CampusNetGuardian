@@ -96,7 +96,7 @@ pub fn run_cli() {
             while !stop.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_secs(20));
                 if pause.load(Ordering::Relaxed) { continue; }
-                let elapsed = heartbeat.lock().unwrap().elapsed().as_secs();
+                let elapsed = heartbeat.lock().unwrap_or_else(|e| e.into_inner()).elapsed().as_secs();
                 if elapsed > 25 {
                     println!("[!] 主循环疑似卡死 ({}s 无响应)，强制重启进程...", elapsed);
                     std::process::exit(1);
@@ -116,7 +116,7 @@ pub fn run_cli() {
         match cmd.as_str() {
             "stop" | "s" => {
                 if !pause.load(Ordering::Relaxed) {
-                    let mut disabled = disabled.lock().unwrap();
+                    let mut disabled = disabled.lock().unwrap_or_else(|e| e.into_inner());
                     if let Some(ref name) = *disabled {
                         if name != "__none__" {
                             if !network::check_internet() {
@@ -131,18 +131,25 @@ pub fn run_cli() {
             }
             "start" | "r" => {
                 if pause.load(Ordering::Relaxed) {
-                    *disabled.lock().unwrap() = None;
+                    *disabled.lock().unwrap_or_else(|e| e.into_inner()) = None;
                     pause.store(false, Ordering::Relaxed);
                     println!("[*] 守护已开启");
                 }
             }
             "restart" => {
-                *disabled.lock().unwrap() = None;
+                *disabled.lock().unwrap_or_else(|e| e.into_inner()) = None;
                 stop.store(true, Ordering::Relaxed);
                 println!("[*] 守护已重启");
-                let exe = std::env::current_exe().unwrap();
-                let _ = std::process::Command::new(exe).arg("--cli").spawn();
-                std::process::exit(0);
+                match std::env::current_exe() {
+                    Ok(exe) => {
+                        if let Err(e) = std::process::Command::new(exe).arg("--cli").spawn() {
+                            println!("[!] 重启失败: {}", e);
+                        } else {
+                            std::process::exit(0);
+                        }
+                    }
+                    Err(e) => println!("[!] 获取程序路径失败: {}", e),
+                }
             }
             "quit" | "q" => {
                 stop.store(true, Ordering::Relaxed);

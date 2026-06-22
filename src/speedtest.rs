@@ -20,17 +20,13 @@ pub enum TestEvent {
 
 pub fn get_current_network_info(ethernet_name: &str, wifi_name: &str) -> (String, String) {
     let adapters = crate::network::get_adapters();
-    for a in &adapters {
-        if a.name == ethernet_name && a.status == "Up" {
-            return ("有线".into(), ethernet_name.into());
+    match crate::network::get_active_adapter(&adapters, ethernet_name, wifi_name) {
+        Some((_, name)) => {
+            if name == ethernet_name { ("有线".into(), name) }
+            else { ("无线".into(), name) }
         }
+        None => ("未知".into(), "--".into()),
     }
-    for a in &adapters {
-        if a.name == wifi_name && a.status == "Up" {
-            return ("无线".into(), wifi_name.into());
-        }
-    }
-    ("未知".into(), "--".into())
 }
 
 pub fn run_ping_test(tx: mpsc::Sender<TestEvent>, gateway: String, stop: Arc<AtomicBool>) {
