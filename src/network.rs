@@ -1,6 +1,11 @@
 use std::process::Command;
 use std::os::windows::process::CommandExt;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use serde::Deserialize;
+
+static ADAPTER_CACHE: Mutex<Option<(Instant, Vec<Adapter>)>> = Mutex::new(None);
+const CACHE_TTL: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Adapter {
@@ -13,13 +18,21 @@ pub struct Adapter {
 }
 
 pub fn get_adapters() -> Vec<Adapter> {
+    if let Ok(mut cache) = ADAPTER_CACHE.lock() {
+        if let Some((ts, ref adapters)) = *cache {
+            if ts.elapsed() < CACHE_TTL {
+                return adapters.clone();
+            }
+        }
+    }
+
     let output = Command::new("powershell")
         .args(["-NoProfile", "-Command",
             "Get-NetAdapter | Select-Object Name, InterfaceDescription, Status | ConvertTo-Json"])
-        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+        .creation_flags(0x08000000)
         .output();
 
-    match output {
+    let adapters = match output {
         Ok(out) if out.status.success() => {
             let (text, _, _) = encoding_rs::GBK.decode(&out.stdout);
             if text.trim().is_empty() {
@@ -37,7 +50,13 @@ pub fn get_adapters() -> Vec<Adapter> {
                 .unwrap_or_default()
         }
         _ => vec![],
+    };
+
+    if let Ok(mut cache) = ADAPTER_CACHE.lock() {
+        *cache = Some((Instant::now(), adapters.clone()));
     }
+
+    adapters
 }
 
 pub const VIRTUAL_KEYWORDS: &[&str] = &[
