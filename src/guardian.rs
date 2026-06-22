@@ -79,7 +79,7 @@ impl GuardianThread {
                     self.wait_for_network_ready(&cfg);
                 } else {
                     self.send_state(GuardianState::Phone { adapter: "USB".into() });
-                    self.interruptible_sleep(Duration::from_secs(2));
+                    self.interruptible_sleep(Duration::from_secs(2), &campus_names);
                 }
                 continue;
             }
@@ -114,7 +114,7 @@ impl GuardianThread {
                     .map(|(_, n)| n)
                     .unwrap_or_else(|| "未知".into());
                 self.send_state(GuardianState::Connected { adapter });
-                self.interruptible_sleep(Duration::from_secs(cfg.normal_check_interval));
+                self.interruptible_sleep(Duration::from_secs(cfg.normal_check_interval), &campus_names);
             } else if network::is_at_school(&cfg.gateway) {
                 if let Some((_, name)) = network::get_active_adapter(&adapters, &cfg.ethernet_name, &cfg.wifi_name) {
                     if self.dry_run {
@@ -142,14 +142,14 @@ impl GuardianThread {
                         interval: current_interval,
                         next_retry: actual_sleep as f64,
                     });
-                    self.interruptible_sleep(Duration::from_secs(actual_sleep.max(1)));
+                    self.interruptible_sleep(Duration::from_secs(actual_sleep.max(1)), &campus_names);
                 } else {
                     self.send_state(GuardianState::Disconnected);
-                    self.interruptible_sleep(Duration::from_secs(10));
+                    self.interruptible_sleep(Duration::from_secs(10), &campus_names);
                 }
             } else {
                 self.send_state(GuardianState::Away);
-                self.interruptible_sleep(Duration::from_secs(30));
+                self.interruptible_sleep(Duration::from_secs(30), &campus_names);
             }
         }
     }
@@ -171,17 +171,15 @@ impl GuardianThread {
         let _ = self.state_tx.send(state);
     }
 
-    fn interruptible_sleep(&self, duration: Duration) {
+    fn interruptible_sleep(&self, duration: Duration, campus_names: &[&str]) {
         let end = Instant::now() + duration;
         while Instant::now() < end {
             if self.stop.load(Ordering::Relaxed) {
                 return;
             }
             if !self.pause.load(Ordering::Relaxed) && self.should_check_phone() {
-                let cfg = self.config.lock().unwrap().clone();
-                let campus_names = [&*cfg.ethernet_name, &*cfg.wifi_name];
                 let adapters = network::get_adapters();
-                if network::is_phone_active(&adapters, &campus_names) {
+                if network::is_phone_active(&adapters, campus_names) {
                     return;
                 }
             }

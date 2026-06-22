@@ -173,15 +173,22 @@ pub fn auto_detect_all() -> (Option<String>, Option<String>, Option<String>, Opt
     (eth, wifi, gw, ac)
 }
 
+use std::sync::OnceLock;
+
+static HTTP_CLIENT: OnceLock<reqwest::blocking::Client> = OnceLock::new();
+
+fn get_http_client() -> &'static reqwest::blocking::Client {
+    HTTP_CLIENT.get_or_init(|| {
+        reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(3))
+            .build()
+            .unwrap_or_else(|_| reqwest::blocking::Client::new())
+    })
+}
+
 pub fn check_internet() -> bool {
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
-        .build();
-    let client = match client {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-    client.head("https://www.baidu.com")
+    get_http_client()
+        .head("https://www.baidu.com")
         .send()
         .ok()
         .filter(|r| r.status().is_success())

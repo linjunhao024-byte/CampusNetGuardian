@@ -282,56 +282,11 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let t = self.theme.clone();
 
-        // 全局背景色 + 动画
-        self.anim_phase += 0.02;
+        // 全局背景色
         ctx.style_mut(|s| {
             s.visuals.window_fill = t.bg_dark;
             s.visuals.panel_fill = t.bg_dark;
         });
-
-        // 动画背景 - 网络状态波浪
-        let screen = ctx.screen_rect();
-        let painter = ctx.layer_painter(egui::LayerId::new(
-            egui::Order::Background,
-            egui::Id::new("animated_bg"),
-        ));
-        let t_anim = self.anim_phase as f32;
-        let (wave_speed, wave_color, wave_amp) = match &self.state {
-            GuardianState::Connected { .. } => (0.03, t.connected, 20.0),
-            GuardianState::Retrying { .. } => (0.06, t.warning, 30.0),
-            GuardianState::Disconnected | GuardianState::Error => (0.01, t.disconnected, 12.0),
-            GuardianState::Phone { .. } => (0.04, t.warning, 24.0),
-            GuardianState::Paused => (0.005, t.text_dim, 8.0),
-            GuardianState::Away => (0.008, t.text_dim, 10.0),
-            _ => (0.02, t.accent, 16.0),
-        };
-        self.anim_phase += wave_speed as f64;
-        let alpha_base: u8 = if t.name == "Light" { 30 } else { 15 };
-        for line_i in 0..4 {
-            let y_base = screen.top() + screen.height() * (0.2 + line_i as f32 * 0.2);
-            let mut points = Vec::new();
-            let step = 8.0;
-            let mut x = screen.left();
-            while x <= screen.right() {
-                let phase = t_anim + line_i as f32 * 0.8;
-                let y = y_base + (x * 0.008 + phase).sin() * wave_amp
-                    + (x * 0.015 + phase * 1.3).sin() * wave_amp * 0.5;
-                points.push(egui::pos2(x, y));
-                x += step;
-            }
-            let alpha = alpha_base.saturating_sub(line_i as u8 * 2);
-            let c = if t.name == "Light" {
-                egui::Color32::from_rgba_unmultiplied(
-                    wave_color.r() / 2, wave_color.g() / 2, wave_color.b() / 2, alpha,
-                )
-            } else {
-                egui::Color32::from_rgba_unmultiplied(
-                    wave_color.r(), wave_color.g(), wave_color.b(), alpha,
-                )
-            };
-            let stroke = if t.name == "Light" { 2.0 } else { 1.5 };
-            painter.add(egui::Shape::line(points, egui::Stroke::new(stroke, c)));
-        }
 
         if let Some(rx) = &self.tray_rx {
             while let Ok(evt) = rx.try_recv() {
@@ -355,6 +310,52 @@ impl eframe::App for App {
         if self.minimized {
             ctx.request_repaint_after(Duration::from_millis(500));
             return;
+        }
+
+        // 动画背景 - 网络状态波浪
+        {
+            let screen = ctx.screen_rect();
+            let painter = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Background,
+                egui::Id::new("animated_bg"),
+            ));
+            let (wave_speed, wave_color, wave_amp) = match &self.state {
+                GuardianState::Connected { .. } => (0.03, t.connected, 20.0),
+                GuardianState::Retrying { .. } => (0.06, t.warning, 30.0),
+                GuardianState::Disconnected | GuardianState::Error => (0.01, t.disconnected, 12.0),
+                GuardianState::Phone { .. } => (0.04, t.warning, 24.0),
+                GuardianState::Paused => (0.005, t.text_dim, 8.0),
+                GuardianState::Away => (0.008, t.text_dim, 10.0),
+                _ => (0.02, t.accent, 16.0),
+            };
+            self.anim_phase += wave_speed as f64;
+            let t_anim = self.anim_phase as f32;
+            let alpha_base: u8 = if t.name == "Light" { 30 } else { 15 };
+            for line_i in 0..4 {
+                let y_base = screen.top() + screen.height() * (0.2 + line_i as f32 * 0.2);
+                let mut points = Vec::new();
+                let step = 8.0;
+                let mut x = screen.left();
+                while x <= screen.right() {
+                    let phase = t_anim + line_i as f32 * 0.8;
+                    let y = y_base + (x * 0.008 + phase).sin() * wave_amp
+                        + (x * 0.015 + phase * 1.3).sin() * wave_amp * 0.5;
+                    points.push(egui::pos2(x, y));
+                    x += step;
+                }
+                let alpha = alpha_base.saturating_sub(line_i as u8 * 2);
+                let c = if t.name == "Light" {
+                    egui::Color32::from_rgba_unmultiplied(
+                        wave_color.r() / 2, wave_color.g() / 2, wave_color.b() / 2, alpha,
+                    )
+                } else {
+                    egui::Color32::from_rgba_unmultiplied(
+                        wave_color.r(), wave_color.g(), wave_color.b(), alpha,
+                    )
+                };
+                let stroke = if t.name == "Light" { 2.0 } else { 1.5 };
+                painter.add(egui::Shape::line(points, egui::Stroke::new(stroke, c)));
+            }
         }
         if let Some(rx) = &self.detect_rx {
             if let Ok((eth, wifi, gw, ac)) = rx.try_recv() {
@@ -720,6 +721,6 @@ impl eframe::App for App {
                 }
             }
         });
-        ctx.request_repaint();
+        ctx.request_repaint_after(Duration::from_millis(200));
     }
 }

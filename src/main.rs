@@ -10,8 +10,31 @@ mod tray;
 mod speedtest;
 mod theme;
 
+const INSTANCE_PORT: u16 = 65432;
+
+fn acquire_single_instance() -> Option<std::net::TcpListener> {
+    std::net::TcpListener::bind(("127.0.0.1", INSTANCE_PORT)).ok()
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    let is_test = args.iter().any(|a| a == "--test" || a == "--test-gui");
+
+    let _lock = if !is_test {
+        match acquire_single_instance() {
+            Some(l) => Some(l),
+            None => {
+                unsafe {
+                    windows_sys::Win32::System::Console::AllocConsole();
+                    eprintln!("CampusNet Guardian 已在运行中，请勿重复启动。");
+                }
+                std::thread::sleep(std::time::Duration::from_secs(3));
+                std::process::exit(0);
+            }
+        }
+    } else {
+        None
+    };
 
     if args.iter().any(|a| a == "--test") {
         run_test();
